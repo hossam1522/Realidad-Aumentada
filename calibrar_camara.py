@@ -2,9 +2,9 @@ import cv2
 import numpy as np
 import time
 
-DICCIONARIO = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_50)
-tablero = cv2.aruco.CharucoBoard((7, 11), 0.025, 0.018, DICCIONARIO)
-#tablero.setLegacyPattern(True) #Esto permite el uso un tablero de anteriores versiones
+DICCIONARIO = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
+tablero = cv2.aruco.CharucoBoard((6, 8), 0.03, 0.02, DICCIONARIO)
+tablero.setLegacyPattern(True) #Esto es porque uso un tablaeo de anteriores versiones
 detector = cv2.aruco.CharucoDetector(tablero)
 
 # Podemos imprimir creando nosotros la imagen o descargando de...
