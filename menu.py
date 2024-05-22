@@ -1,5 +1,7 @@
 import cv2
 import numpy as np
+import speech_recognition as sr
+import threading
 
 # Iniciar la captura de video
 cap = cv2.VideoCapture(0)
@@ -12,6 +14,41 @@ if not cap.isOpened():
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_50)
 # Crear los parámetros del detector ArUco
 parameters = cv2.aruco.DetectorParameters()
+
+# Variable para rastrear el ítem del menú actual
+current_menu_item = 0
+menu_items = ["Menu Item 1", "Menu Item 2", "Menu Item 3"]
+
+# Inicializar el reconocedor de voz
+recognizer = sr.Recognizer()
+listening = False
+
+def recognize_speech():
+    global current_menu_item, listening
+    while True:
+        if listening:
+            with sr.Microphone() as source:
+                recognizer.adjust_for_ambient_noise(source)
+                print("Escuchando...")
+                try:
+                    #audio = recognizer.listen(source, timeout=5, phrase_time_limit=3)
+                    audio = recognizer.listen(source, timeout=5)
+                    command = recognizer.recognize_google(audio, language="es-ES")
+                    command = command.lower()
+                    if "siguiente" in command:
+                        current_menu_item = (current_menu_item + 1) % len(menu_items)
+                        print(f"Comando reconocido: {command}, cambiando a {menu_items[current_menu_item]}")
+                except sr.WaitTimeoutError:
+                    print("Tiempo de espera agotado, intentando nuevamente...")
+                except sr.UnknownValueError:
+                    print("No se entendió el comando")
+                except sr.RequestError:
+                    print("Error en el servicio de reconocimiento de voz")
+            listening = False
+
+# Crear un hilo para el reconocimiento de voz
+voice_thread = threading.Thread(target=recognize_speech, daemon=True)
+voice_thread.start()
 
 while True:
     # Capturar el cuadro
@@ -26,8 +63,10 @@ while True:
     # Detectar los marcadores ArUco
     corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
 
-    # Si se detectan marcadores
-    if ids is not None:
+    if ids is not None and len(ids) > 0:
+        # Se detectaron marcadores
+        listening = True
+
         # Dibujar los marcadores detectados
         frame = cv2.aruco.drawDetectedMarkers(frame, corners, ids)
 
@@ -38,11 +77,12 @@ while True:
 
             # Dibujar el menú (un rectángulo simple en este ejemplo)
             cv2.rectangle(frame, top_left, (top_left[0] + 150, top_left[1] + 100), (125, 125, 125), -1)
-            cv2.putText(frame, "Menu Item 1", (top_left[0] + 10, top_left[1] + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
-            # Poner más items de menú aquí
-            cv2.putText(frame, "Menu Item 2", (top_left[0] + 10, top_left[1] + 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
-            cv2.putText(frame, "Menu Item 3", (top_left[0] + 10, top_left[1] + 70), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
-
+            # Mostrar solo el ítem del menú actual
+            cv2.putText(frame, menu_items[current_menu_item], (top_left[0] + 10, top_left[1] + 30), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+    else:
+        # No se detectaron marcadores, restablecer el ítem del menú
+        current_menu_item = 0
 
     # Mostrar el cuadro con el menú superpuesto
     cv2.imshow('AR Menu', frame)
