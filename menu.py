@@ -2,95 +2,108 @@ import cv2
 import numpy as np
 import speech_recognition as sr
 import threading
+from bbdd import obtenerMenu
 
-# Iniciar la captura de video
-cap = cv2.VideoCapture(0)
+# Función que muestra el menú y permite seleccionar una receta mediante comandos de voz
+def iniciar_menu_ar():
+    
+    # Inicializar el menú con los nombres de las recetas y sus ingredientes
+    menu_items = [f"{nombre}: {ingredientes}" for nombre, ingredientes in obtenerMenu()]
+    menu_names = [nombre for nombre, ingredientes in obtenerMenu()]
 
-if not cap.isOpened():
-    print("Error: No se puede abrir la cámara")
-    exit()
+    # Iniciar la captura de video
+    cap = cv2.VideoCapture(0)
 
-# Cargar el diccionario de marcadores ArUco
-aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_50)
-# Crear los parámetros del detector ArUco
-parameters = cv2.aruco.DetectorParameters()
+    if not cap.isOpened():
+        print("Error: No se puede abrir la cámara")
+        return
 
-# Variable para rastrear el ítem del menú actual
-current_menu_item = 0
-menu_items = ["Menu Item 1", "Menu Item 2", "Menu Item 3"]
+    # Cargar el diccionario de marcadores ArUco
+    aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_50)
+    # Crear los parámetros del detector ArUco
+    parameters = cv2.aruco.DetectorParameters()
 
-# Inicializar el reconocedor de voz
-recognizer = sr.Recognizer()
-listening = False
+    # Variable para rastrear el ítem del menú actual
+    current_menu_item = 0
 
-def recognize_speech():
-    global current_menu_item, listening
-    while True:
-        if listening:
-            with sr.Microphone() as source:
-                recognizer.adjust_for_ambient_noise(source)
-                print("Escuchando...")
-                try:
-                    #audio = recognizer.listen(source, timeout=5, phrase_time_limit=3)
-                    audio = recognizer.listen(source, timeout=5)
-                    command = recognizer.recognize_google(audio, language="es-ES")
-                    command = command.lower()
-                    if "siguiente" in command:
-                        current_menu_item = (current_menu_item + 1) % len(menu_items)
-                        print(f"Comando reconocido: {command}, cambiando a {menu_items[current_menu_item]}")
-                except sr.WaitTimeoutError:
-                    print("Tiempo de espera agotado, intentando nuevamente...")
-                except sr.UnknownValueError:
-                    print("No se entendió el comando")
-                except sr.RequestError:
-                    print("Error en el servicio de reconocimiento de voz")
-            listening = False
+    # Inicializar el reconocedor de voz
+    recognizer = sr.Recognizer()
+    listening = False
+    selected_item = None
 
-# Crear un hilo para el reconocimiento de voz
-voice_thread = threading.Thread(target=recognize_speech, daemon=True)
-voice_thread.start()
+    def recognize_speech():
+        nonlocal current_menu_item, listening, selected_item
+        while True:
+            if listening:
+                with sr.Microphone() as source:
+                    recognizer.adjust_for_ambient_noise(source)
+                    print("Escuchando...")
+                    try:
+                        audio = recognizer.listen(source, timeout=5)
+                        command = recognizer.recognize_google(audio, language="es-ES")
+                        command = command.lower()
+                        if "siguiente" in command:
+                            current_menu_item = (current_menu_item + 1) % len(menu_items)
+                            print(f"Comando reconocido: {command}, cambiando a {menu_items[current_menu_item]}")
+                        elif "seleccionar" in command:
+                            selected_item = menu_names[current_menu_item]
+                            print(f"Comando reconocido: {command}, seleccionando {selected_item}")
+                            break
+                    except sr.WaitTimeoutError:
+                        print("Tiempo de espera agotado, intentando nuevamente...")
+                    except sr.UnknownValueError:
+                        print("No se entendió el comando")
+                    except sr.RequestError:
+                        print("Error en el servicio de reconocimiento de voz")
+                listening = False
 
-while True:
-    # Capturar el cuadro
-    ret, frame = cap.read()
-    if not ret:
-        print("Error: No se puede recibir el cuadro (stream finalizado?)")
-        break
+    # Crear un hilo para el reconocimiento de voz
+    voice_thread = threading.Thread(target=recognize_speech, daemon=True)
+    voice_thread.start()
 
-    # Convertir a escala de grises
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    while selected_item is None:
+        # Capturar el cuadro
+        ret, frame = cap.read()
+        if not ret:
+            print("Error: No se puede recibir el cuadro (stream finalizado?)")
+            break
 
-    # Detectar los marcadores ArUco
-    corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
+        # Convertir a escala de grises
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-    if ids is not None and len(ids) > 0:
-        # Se detectaron marcadores
-        listening = True
+        # Detectar los marcadores ArUco
+        corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
 
-        # Dibujar los marcadores detectados
-        frame = cv2.aruco.drawDetectedMarkers(frame, corners, ids)
+        if ids is not None and len(ids) > 0:
+            # Se detectaron marcadores
+            listening = True
 
-        # Iterar sobre cada marcador detectado
-        for corner in corners:
-            # Obtener el punto superior izquierdo del marcador
-            top_left = tuple(corner[0][0].astype(int))
+            # Dibujar los marcadores detectados
+            frame = cv2.aruco.drawDetectedMarkers(frame, corners, ids)
 
-            # Dibujar el menú (un rectángulo simple en este ejemplo)
-            cv2.rectangle(frame, top_left, (top_left[0] + 150, top_left[1] + 100), (125, 125, 125), -1)
-            # Mostrar solo el ítem del menú actual
-            cv2.putText(frame, menu_items[current_menu_item], (top_left[0] + 10, top_left[1] + 30), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
-    else:
-        # No se detectaron marcadores, restablecer el ítem del menú
-        current_menu_item = 0
+            # Iterar sobre cada marcador detectado
+            for corner in corners:
+                # Obtener el punto superior izquierdo del marcador
+                top_left = tuple(corner[0][0].astype(int))
 
-    # Mostrar el cuadro con el menú superpuesto
-    cv2.imshow('AR Menu', frame)
+                # Dibujar el menú (un rectángulo simple en este ejemplo)
+                cv2.rectangle(frame, top_left, (top_left[0] + 300, top_left[1] + 100), (125, 125, 125), -1)
+                # Mostrar solo el ítem del menú actual
+                cv2.putText(frame, menu_items[current_menu_item], (top_left[0] + 10, top_left[1] + 30), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+        else:
+            # No se detectaron marcadores, restablecer el ítem del menú
+            current_menu_item = 0
 
-    # Salir con la tecla 'q'
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+        # Mostrar el cuadro con el menú superpuesto
+        cv2.imshow('AR Menu', frame)
 
-# Liberar la captura y cerrar ventanas
-cap.release()
-cv2.destroyAllWindows()
+        # Salir con la tecla 'q'
+        if cv2.waitKey(1) & 0xFF == ord(' '):
+            break
+
+    # Liberar la captura y cerrar ventanas
+    cap.release()
+    cv2.destroyAllWindows()
+
+    return selected_item
