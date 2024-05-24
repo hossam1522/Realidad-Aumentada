@@ -1,6 +1,4 @@
-from practica import cargarModelo, camaraPyrender, mostrarModelo, render, devolverEscena
-import pyrender
-import camara
+from practica import cargarModelo, mostrarModelo, devolverEscena
 import bbdd
 import menu
 
@@ -25,19 +23,17 @@ escena, cam, ar, mirender = devolverEscena() # Creamos la escena y la cámara
 
 receta = menu.iniciar_menu_ar()
 print ("Receta seleccionada: ", receta)
-#receta = "Ramen"
-ruta_receta=""
-if receta == "Ramen":
-    #ruta_receta = "modelos/ramen_bowl.glb"
-    modelo = cargarModelo("modelos/ramen_bowl.glb") # Cargamos el modelo 3D (en formato glb)
-    escena.add_node(modelo) # Y la añadimos a la escena
-elif receta == "Hamburguesa":
-    #ruta_receta = "modelos/hamburguesa.glb"
-    modelo = cargarModelo("modelos/hamburguesa.glb")
-    escena.add_node(modelo)
 
-#modelo = cargarModelo(ruta_receta) # Cargamos el modelo 3D (en formato glb)
-#escena.add_node(modelo) # Y la añadimos a la escena
+ruta_receta=""
+escala = 1.0
+if receta == "Ramen":
+    ruta_receta = "modelos/ramen_bowl.glb"
+elif receta == "Hamburguesa":
+    ruta_receta = "modelos/hamburguesa.glb"
+    escala = 0.3
+
+modelo = cargarModelo(ruta_receta, escala) # Cargamos el modelo 3D (en formato glb)
+escena.add_node(modelo) # Y la añadimos a la escena
 
 # Mostrar el modelo 3D encima de un marcador de la biblioteca
 ar.process = mostrarModelo

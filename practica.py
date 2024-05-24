@@ -25,7 +25,7 @@ def fromOpencvToPyrender(rvec, tvec):
   return(pose)
 
 
-def cargarModelo(nombrefi):
+def cargarModelo(nombrefi, escala=1.0):
   modelo_trimesh = trimesh.load(nombrefi, file_type='glb')
   modelo_mesh = pyrender.Mesh.from_trimesh(list(modelo_trimesh.geometry.values()))
 
@@ -33,7 +33,7 @@ def cargarModelo(nombrefi):
 
   mat_rot = mathutils.Matrix.Rotation(math.radians(90.0), 4, 'X')
 
-  mat_sca = mathutils.Matrix.Scale(1.0, 4)
+  mat_sca = mathutils.Matrix.Scale(escala, 4)
 
   meshpose = mat_loc @ mat_rot @ mat_sca
 
@@ -52,8 +52,7 @@ def camaraPyrender(camara):
   return cam
 
 
-def render():
-  camId = 0
+def render(camId=0):
   bk = cuia.bestBackend(camId)
   ar = cuia.myVideo(camId, bk)
   hframe = ar.get(cv2.CAP_PROP_FRAME_HEIGHT)

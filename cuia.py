@@ -42,14 +42,15 @@ def bestBackend(camid):
   bestCap = 0
   bestTime = 999
   for b in backends:
-    start = time.time()
-    cam = cv2.VideoCapture(camid, b)
-    end = time.time()
-    if cam.isOpened():
-      if end-start < bestTime:
-        bestTime = end-start
-        bestCap = b
-      cam.release()
+    if b != 2600: # Backend quitado porque da problemas
+      start = time.time()
+      cam = cv2.VideoCapture(camid, b)
+      end = time.time()
+      if cam.isOpened():
+        if end-start < bestTime:
+          bestTime = end-start
+          bestCap = b
+        cam.release()
   return bestCap
 # Ejemplo de uso -> myCam = 0 -> bestCap = bestBackend(myCam) 
 

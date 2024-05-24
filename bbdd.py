@@ -19,7 +19,7 @@ def crearTablas():
         )
     ''')
 
-    # Crear tabla de recetas
+    # Crear tabla de recetas (añadir ruta del modelo 3D y su escala, además del marcador asociado)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS recetas (
             id INTEGER PRIMARY KEY,
