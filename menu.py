@@ -2,18 +2,55 @@ import cv2
 import numpy as np
 import speech_recognition as sr
 import threading
-from bbdd import obtenerMenu
+import time
+import queue
+from bbdd import obtenerMenu, obtener_ingrediente_por_marcador, obtener_recetas_por_ingrediente
+
+modo = "Estatico"
 
 # Función que muestra el menú y permite seleccionar una receta mediante comandos de voz
 def iniciar_menu_ar():
-    
-    # Inicializar el menú con los nombres de las recetas y sus ingredientes
-    menu_items = [f"{nombre}: {ingredientes}" for nombre, ingredientes in obtenerMenu()]
-    menu_names = [nombre for nombre, ingredientes in obtenerMenu()]
+    # Inicializar el reconocedor de voz
+    recognizer = sr.Recognizer()
+    listening = False
+    selected_item = None
+
+    # Diccionario para almacenar el estado del menú para cada marcador
+    menu_states = {}
+
+    def recognize_speech():
+        nonlocal listening, selected_item, menu_states
+        with sr.Microphone() as source:
+            recognizer.adjust_for_ambient_noise(source)
+            while True:
+                if listening:
+                    print("Escuchando...")
+                    try:
+                        audio = recognizer.listen(source, timeout=5)
+                        command = recognizer.recognize_google(audio, language="es-ES")
+                        command = command.lower()
+                        print(f"Comando reconocido: {command}")
+                        for id_marcador, state in menu_states.items():
+                            if "siguiente" in command:
+                                state['current_item'] = (state['current_item'] + 1) % len(state['menu_items'])
+                                print(f"Marcador {id_marcador}: Cambiando a {state['menu_items'][state['current_item']]}")
+                            elif "seleccionar" in command:
+                                selected_item = state['menu_items'][state['current_item']]
+                                print(f"Marcador {id_marcador}: Item seleccionado {selected_item}")
+                                listening = False
+                                break
+                    except sr.WaitTimeoutError:
+                        print("Tiempo de espera agotado")
+                    except sr.UnknownValueError:
+                        print("No se entendió el comando")
+                    except sr.RequestError as e:
+                        print(f"Error al solicitar resultados de reconocimiento de voz; {e}")
+
+    # Hilo para reconocimiento de voz
+    threading.Thread(target=recognize_speech, daemon=True).start()
 
     # Iniciar la captura de video
     cap = cv2.VideoCapture(0)
-
     if not cap.isOpened():
         print("Error: No se puede abrir la cámara")
         return
@@ -22,44 +59,6 @@ def iniciar_menu_ar():
     aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_50)
     # Crear los parámetros del detector ArUco
     parameters = cv2.aruco.DetectorParameters()
-
-    # Variable para rastrear el ítem del menú actual
-    current_menu_item = 0
-
-    # Inicializar el reconocedor de voz
-    recognizer = sr.Recognizer()
-    listening = False
-    selected_item = None
-
-    def recognize_speech():
-        nonlocal current_menu_item, listening, selected_item
-        while True:
-            if listening:
-                with sr.Microphone() as source:
-                    recognizer.adjust_for_ambient_noise(source)
-                    print("Escuchando...")
-                    try:
-                        audio = recognizer.listen(source, timeout=5)
-                        command = recognizer.recognize_google(audio, language="es-ES")
-                        command = command.lower()
-                        if "siguiente" in command:
-                            current_menu_item = (current_menu_item + 1) % len(menu_items)
-                            print(f"Comando reconocido: {command}, cambiando a {menu_items[current_menu_item]}")
-                        elif "seleccionar" in command:
-                            selected_item = menu_names[current_menu_item]
-                            print(f"Comando reconocido: {command}, seleccionando {selected_item}")
-                            break
-                    except sr.WaitTimeoutError:
-                        print("Tiempo de espera agotado, intentando nuevamente...")
-                    except sr.UnknownValueError:
-                        print("No se entendió el comando")
-                    except sr.RequestError:
-                        print("Error en el servicio de reconocimiento de voz")
-                listening = False
-
-    # Crear un hilo para el reconocimiento de voz
-    voice_thread = threading.Thread(target=recognize_speech, daemon=True)
-    voice_thread.start()
 
     while selected_item is None:
         # Capturar el cuadro
@@ -75,34 +74,52 @@ def iniciar_menu_ar():
         corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
 
         if ids is not None and len(ids) > 0:
-            # Se detectaron marcadores
             listening = True
-
             # Dibujar los marcadores detectados
-            frame = cv2.aruco.drawDetectedMarkers(frame, corners, ids)
+            frame = cv2.aruco.drawDetectedMarkers(frame, corners)
 
             # Iterar sobre cada marcador detectado
-            for corner in corners:
-                # Obtener el punto superior izquierdo del marcador
-                top_left = tuple(corner[0][0].astype(int))
+            for i in range(len(ids)):
+                id_marcador = ids[i][0]
+                corner = corners[i]
 
-                # Dibujar el menú (un rectángulo simple en este ejemplo)
-                cv2.rectangle(frame, top_left, (top_left[0] + 300, top_left[1] + 100), (125, 125, 125), -1)
-                # Mostrar solo el ítem del menú actual
-                cv2.putText(frame, menu_items[current_menu_item], (top_left[0] + 10, top_left[1] + 30), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+                # Obtener el ingrediente asociado al marcador
+                ingrediente = obtener_ingrediente_por_marcador(int(id_marcador))
+                if ingrediente:
+                    # Obtener las recetas asociadas al ingrediente
+                    recetas = obtener_recetas_por_ingrediente(ingrediente[0])
+
+                    # Si el marcador no tiene un estado de menú, inicializarlo
+                    if id_marcador not in menu_states:
+                        menu_states[id_marcador] = {
+                            'menu_items': recetas,
+                            'current_item': 0
+                        }
+
+                    state = menu_states[id_marcador]
+
+                    # Obtener el punto superior izquierdo del marcador
+                    top_left = tuple(corner[0][0].astype(int))
+
+                    # Dibujar el menú (un rectángulo simple en este ejemplo)
+                    cv2.rectangle(frame, top_left, (top_left[0] + 300, top_left[1] + 100 + 20*len(recetas)), (125, 125, 125), -1)
+
+                    # Mostrar el ingrediente y las recetas en el cuadro
+                    cv2.putText(frame, f"Ingrediente: {ingrediente}", (top_left[0] + 10, top_left[1] + 30), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+                    for idx, receta in enumerate(state['menu_items']):
+                        prefix = "-> " if idx == state['current_item'] else "   "
+                        cv2.putText(frame, prefix + receta, (top_left[0] + 10, top_left[1] + 60 + 20*idx), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
         else:
-            # No se detectaron marcadores, restablecer el ítem del menú
-            current_menu_item = 0
+            listening = False
 
-        # Mostrar el cuadro con el menú superpuesto
-        cv2.imshow('AR Menu', frame)
-
-        # Salir con la tecla 'q'
+        # Mostrar el cuadro
+        cv2.imshow('frame', frame)
         if cv2.waitKey(1) & 0xFF == ord(' '):
             break
 
-    # Liberar la captura y cerrar ventanas
+    # Liberar los recursos
     cap.release()
     cv2.destroyAllWindows()
 
