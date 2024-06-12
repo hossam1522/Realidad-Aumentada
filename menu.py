@@ -10,16 +10,19 @@ modo = "Estatico"
 
 # Función que muestra el menú y permite seleccionar una receta mediante comandos de voz
 def iniciar_menu_ar():
+    global modo
     # Inicializar el reconocedor de voz
     recognizer = sr.Recognizer()
     listening = False
     selected_item = None
+    marcador = None
 
     # Diccionario para almacenar el estado del menú para cada marcador
     menu_states = {}
 
     def recognize_speech():
-        nonlocal listening, selected_item, menu_states
+        nonlocal listening, selected_item, menu_states, marcador
+        global modo
         with sr.Microphone() as source:
             recognizer.adjust_for_ambient_noise(source)
             while True:
@@ -36,9 +39,14 @@ def iniciar_menu_ar():
                                 print(f"Marcador {id_marcador}: Cambiando a {state['menu_items'][state['current_item']]}")
                             elif "seleccionar" in command:
                                 selected_item = state['menu_items'][state['current_item']]
+                                marcador = id_marcador
                                 print(f"Marcador {id_marcador}: Item seleccionado {selected_item}")
                                 listening = False
                                 break
+                            elif "estático" in command:
+                                modo = "Estatico"
+                            elif "dinámico" in command:
+                                modo = "Dinamico"
                     except sr.WaitTimeoutError:
                         print("Tiempo de espera agotado")
                     except sr.UnknownValueError:
@@ -114,6 +122,23 @@ def iniciar_menu_ar():
         else:
             listening = False
 
+        # Añadir un fondo al texto del modo
+        text = modo
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.7
+        font_thickness = 2
+        text_size, _ = cv2.getTextSize(text, font, font_scale, font_thickness)
+        text_w, text_h = text_size
+
+        # Definir la posición del texto y el rectángulo
+        text_x, text_y = 10, 30
+        rect_x1, rect_y1 = text_x - 5, text_y - text_h - 5
+        rect_x2, rect_y2 = text_x + text_w + 5, text_y + 5
+
+        # Dibujar el rectángulo y el texto
+        cv2.rectangle(frame, (rect_x1, rect_y1), (rect_x2, rect_y2), (0, 0, 0), -1)
+        cv2.putText(frame, text, (text_x, text_y), font, font_scale, (255, 255, 255), font_thickness, cv2.LINE_AA)
+
         # Mostrar el cuadro
         cv2.imshow('frame', frame)
         if cv2.waitKey(1) & 0xFF == ord(' '):
@@ -123,4 +148,7 @@ def iniciar_menu_ar():
     cap.release()
     cv2.destroyAllWindows()
 
-    return selected_item
+    return selected_item, marcador
+
+def obtenerModo():
+    return modo

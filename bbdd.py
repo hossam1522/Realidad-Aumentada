@@ -61,6 +61,13 @@ def insertarReceta(nombre, ingredientes, propiedades, ruta_modelo, escala):
     conn.commit()
     conn.close()
 
+def borrarReceta(nombre):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM recetas WHERE nombre = ?', (nombre,))
+    conn.commit()
+    conn.close()
+
 def insertarIngrediente(nombre, marcador):
     conn = conectar()
     cursor = conn.cursor()
@@ -269,3 +276,6 @@ def inicializarPrograma():
 #print(y)
 
 #print(obtener_ruta_escala_receta("Ramen"))
+#insertarReceta("Donut", "harina, azucar, huevo, aceite", "sin_gluten,sin_lactosa", "modelos/donut.glb", 1)
+#borrarReceta("Galleta")
+#insertarReceta("Galleta", "harina, azucar, huevo, mantequilla", "sin_gluten,sin_lactosa", "modelos/galleta.glb", 0.3)

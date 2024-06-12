@@ -36,7 +36,7 @@ def confirmar_datos():
 
 def iniciar_programa(nombre):
     escena, cam, ar, mirender = devolverEscena()  # Creamos la escena y la cámara
-    receta = menu.iniciar_menu_ar()
+    receta, marcador = menu.iniciar_menu_ar()
     print("Receta seleccionada: ", receta)
     
     #modelo = cargarModelo(ruta_receta, escala)  # Cargamos el modelo 3D (en formato glb)
@@ -49,7 +49,11 @@ def iniciar_programa(nombre):
     escena.add_node(modelo)  # Y la añadimos a la escena
     
     # Mostrar el modelo 3D encima de un marcador de la biblioteca
-    ar.process = mostrarModelo
+    if menu.obtenerModo() == "Estatico":
+        ar.process = lambda frame: mostrarModelo(frame, 0)
+    else:
+        ar.process = lambda frame: mostrarModelo(frame, marcador)
+        
     try:
         ar.play("AR", key=ord(' '))
     finally:

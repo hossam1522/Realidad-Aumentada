@@ -91,8 +91,8 @@ def realidadMixta(renderizador, frame, escena):
     return(res)
 
 # Función para mostrar modelos 3D en la cámara
-def mostrarModelo(frame):
-    ret, rvec, tvec = detectarPose(frame, 0, 0.40) #Buscaremos el marcador 0 impreso con 19cm de lado
+def mostrarModelo(frame, marcador):
+    ret, rvec, tvec = detectarPose(frame, marcador, 0.40) #Buscaremos el marcador 0 impreso con 19cm de lado
     if ret:
         poseCamara = fromOpencvToPyrender(rvec, tvec) #Determinamos la posición de la cámara en forma de matriz de transformación de Pyrender
         escena.set_pose(cam, poseCamara) #Ubicamos la cámara en la posición obtenido
