@@ -118,7 +118,7 @@ class RegisterWindow(QWidget):
 
 def iniciar_programa(nombre):
     escena, cam, ar, mirender = devolverEscena()  # Creamos la escena y la cámara
-    receta, marcador = menu.iniciar_menu_ar()
+    receta, marcador = menu.iniciar_menu_ar(nombre)
     print("Receta seleccionada: ", receta)
     
     try:

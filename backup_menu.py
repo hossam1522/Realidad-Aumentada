@@ -9,7 +9,7 @@ from bbdd import obtenerMenu, obtener_ingrediente_por_marcador, obtener_recetas_
 modo = "Estatico"
 
 # Función que muestra el menú y permite seleccionar una receta mediante comandos de voz
-def iniciar_menu_ar():
+def iniciar_menu_ar(nombre_usuario):
     
     # Inicializar el menú con los nombres de las recetas y sus ingredientes
     menu_items = [f"{nombre}: {ingredientes}" for nombre, ingredientes in obtenerMenu()]

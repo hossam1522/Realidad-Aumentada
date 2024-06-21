@@ -4,7 +4,7 @@ import vosk
 import threading
 import json
 import pyaudio
-from bbdd import obtenerMenu, obtener_ingrediente_por_marcador, obtener_recetas_por_ingrediente, obtener_ingredientes_de_receta, obtener_alergias_de_receta, alergias_usuario
+from bbdd import obtenerMenu, obtener_ingrediente_por_marcador, obtener_recetas_por_ingrediente, obtener_ingredientes_de_receta
 
 modo = "Estatico"
 
@@ -15,7 +15,7 @@ model = vosk.Model("voz/vosk-model-small-es-0.42")
 p = pyaudio.PyAudio()
 stream = p.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=4000)
 
-def iniciar_menu_ar(nombre_usuario):
+def iniciar_menu_ar():
     global modo
     listening = False
     selected_item = None
@@ -82,9 +82,6 @@ def iniciar_menu_ar(nombre_usuario):
     # Crear los parámetros del detector ArUco
     parameters = cv2.aruco.DetectorParameters()
 
-    # Lista de alergias a evitar
-    alergias = alergias_usuario(nombre_usuario)
-
     while selected_item is None or ingredientes_visible:
         # Capturar el cuadro
         ret, frame = cap.read()
@@ -128,32 +125,15 @@ def iniciar_menu_ar(nombre_usuario):
                     top_left = tuple(corner[0][0].astype(int))
 
                     # Dibujar el menú (un rectángulo simple en este ejemplo)
-                    cv2.rectangle(frame, top_left, (top_left[0] + 350, top_left[1] + 100 + 20*len(recetas)), (125, 125, 125), -1)
+                    cv2.rectangle(frame, top_left, (top_left[0] + 300, top_left[1] + 100 + 20*len(recetas)), (125, 125, 125), -1)
 
                     # Mostrar el ingrediente y las recetas en el cuadro
                     cv2.putText(frame, f"Ingrediente: {ingrediente[0]}", (top_left[0] + 10, top_left[1] + 30), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
-
                     for idx, receta in enumerate(state['menu_items']):
                         prefix = "-> " if idx == state['current_item'] else "   "
-                        receta_text = prefix + receta
-                        receta_text_position = (top_left[0] + 10, top_left[1] + 60 + 20 * idx)
-
-                        # Dibujar el texto de la receta
-                        cv2.putText(frame, receta_text, receta_text_position, 
+                        cv2.putText(frame, prefix + receta, (top_left[0] + 10, top_left[1] + 60 + 20*idx), 
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
-
-                        # Calcular el tamaño del texto de la receta
-                        (text_width, text_height), baseline = cv2.getTextSize(receta_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
-
-                        # Verificar alergias
-                        alergias_receta = obtener_alergias_de_receta(receta)
-                        cumple_restricciones = all(alergia not in alergias_receta for alergia in alergias)
-                        if not cumple_restricciones:
-                            aviso_text_position = (receta_text_position[0] + text_width + 10, receta_text_position[1])  # Añadir un pequeño espacio después del texto
-                            cv2.putText(frame, "AVISO: Contiene alergenos", aviso_text_position, 
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2, cv2.LINE_AA)
-
 
                     # Mostrar los ingredientes de la receta seleccionada si se ha dado el comando
                     if ingredientes_visible:
@@ -203,6 +183,6 @@ def obtenerModo():
 
 def obtenerStream():
     return stream, p
-
-# Llamar a la función principal
-# iniciar_menu_ar()
+#
+## Llamar a la función principal
+#iniciar_menu_ar()

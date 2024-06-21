@@ -271,6 +271,22 @@ def obtener_ingredientes_de_receta(nombre_receta):
     conn.close()
     return resultado[0].split(',')
 
+def alergias_usuario(nombre_usuario):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute('SELECT alergias FROM usuarios WHERE nombre = ?', (nombre_usuario,))
+    resultado = cursor.fetchone()
+    conn.close()
+    return resultado[0].split(',')
+
+def obtener_alergias_de_receta(nombre_receta):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute('SELECT propiedades FROM recetas WHERE nombre = ?', (nombre_receta,))
+    resultado = cursor.fetchone()
+    conn.close()
+    return resultado[0].split(',')
+
 def inicializarPrograma():
     borrarTodasLasTablas()
     crearTablas()
@@ -289,7 +305,7 @@ def inicializarPrograma():
 #print(obtener_ruta_escala_receta("Ramen"))
 #insertarReceta("Donut", "harina, azucar, huevo, aceite", "sin_gluten,sin_lactosa", "modelos/donut.glb", 1)
 #borrarReceta("Galleta")
-#insertarReceta("Galleta", "harina, azucar, huevo, mantequilla", "sin_gluten,sin_lactosa", "modelos/galleta.glb", 0.3)
+#insertarReceta("Galleta", "harina, azucar, huevo, mantequilla", "Lactosa", "modelos/galleta.glb", 0.3, "glb", 0.0)
 
 #borrarTodosValoresTabla("usuarios")
 #for usuario in consultarUsuarios():print(usuario)
