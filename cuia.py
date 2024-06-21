@@ -3,6 +3,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 import time
 import os
+from threading import Thread
 
 # Para leer una imagen -> nombre_imagen = cv2.imread('nombre_imagen.jpg')
 # Para mostrar imágenes -> cv2.imshow('nombre_ventana', nombre_imagen)

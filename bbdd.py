@@ -15,7 +15,8 @@ def crearTablas():
             id INTEGER PRIMARY KEY,
             nombre TEXT UNIQUE,
             alergias TEXT,
-            preferencias TEXT
+            preferencias TEXT,
+            face_encoding TEXT
         )
     ''')
 
@@ -27,7 +28,9 @@ def crearTablas():
             ingredientes TEXT,
             propiedades TEXT,
             ruta_modelo TEXT,
-            escala FLOAT
+            escala FLOAT,
+            tipo_archivo TEXT,
+            rotacion FLOAT
         )
     ''')
 
@@ -43,21 +46,21 @@ def crearTablas():
     conn.commit()
     conn.close()
 
-def insertarUsuario(nombre, alergias, preferencias):
+def insertarUsuario(nombre, alergias, preferencias, face_encoding):
     conn = conectar()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO usuarios (nombre, alergias, preferencias) VALUES (?, ?, ?)
-    ''', (nombre, alergias, preferencias))
+        INSERT INTO usuarios (nombre, alergias, preferencias, face_encoding) VALUES (?, ?, ?, ?)
+    ''', (nombre, alergias, preferencias, face_encoding))
     conn.commit()
     conn.close()
 
-def insertarReceta(nombre, ingredientes, propiedades, ruta_modelo, escala):
+def insertarReceta(nombre, ingredientes, propiedades, ruta_modelo, escala, tipo_archivo, rotacion):
     conn = conectar()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO recetas (nombre, ingredientes, propiedades, ruta_modelo, escala) VALUES (?, ?, ?, ?, ?)
-    ''', (nombre, ingredientes, propiedades, ruta_modelo, escala))
+        INSERT INTO recetas (nombre, ingredientes, propiedades, ruta_modelo, escala, tipo_archivo, rotacion) VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (nombre, ingredientes, propiedades, ruta_modelo, escala, tipo_archivo, rotacion))
     conn.commit()
     conn.close()
 
@@ -223,10 +226,10 @@ def recetasAptasConIngrediente(nombre_usuario, ingrediente):
     conn.close()
     return recetas_aptas
 
-def obtener_ruta_escala_receta(nombre_receta):
+def obtener_datos_receta(nombre_receta):
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute('SELECT ruta_modelo, escala FROM recetas WHERE nombre = ?', (nombre_receta,))
+    cursor.execute('SELECT ruta_modelo, escala, tipo_archivo, rotacion FROM recetas WHERE nombre = ?', (nombre_receta,))
     resultado = cursor.fetchone()
     conn.close()
     return resultado
@@ -260,13 +263,21 @@ def obtener_recetas_por_ingrediente(ingrediente):
     conn.close()
     return [row[0] for row in resultado]
 
+def obtener_ingredientes_de_receta(nombre_receta):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute('SELECT ingredientes FROM recetas WHERE nombre = ?', (nombre_receta,))
+    resultado = cursor.fetchone()
+    conn.close()
+    return resultado[0].split(',')
 
 def inicializarPrograma():
     borrarTodasLasTablas()
     crearTablas()
-    insertarUsuario("hossam", None, None)
-    insertarReceta("Ramen", "fideos, huevo, cebolla, cebollino, caldo", "sin_gluten,sin_lactosa", "modelos/ramen_bowl.glb", 1.0)
-    insertarReceta("Hamburguesa", "carne, pan, lechuga, tomate, queso", "sin_gluten,sin_lactosa", "modelos/hamburguesa.glb", 0.3)
+    #insertarUsuario("hossam", "Lactosa", None, "facial/hossam.jpg")
+    insertarReceta("Ramen", "fideos, huevo, cebolla, cebollino, caldo", "sin_gluten,sin_lactosa", "modelos/ramen_bowl.glb", 1.0, "glb", 90.0)
+    insertarReceta("Hamburguesa", "carne, pan, lechuga, tomate, queso", "sin_gluten,sin_lactosa", "modelos/hamburguesa.glb", 0.3, "glb", 90.0)
+    insertarReceta("Galleta", "harina, azucar, huevo, mantequilla", "sin_gluten,sin_lactosa", "modelos/galleta.glb", 0.3, "glb", 0.0)
     insertarIngrediente("huevo", 1)
 
 #inicializarPrograma()
@@ -279,3 +290,7 @@ def inicializarPrograma():
 #insertarReceta("Donut", "harina, azucar, huevo, aceite", "sin_gluten,sin_lactosa", "modelos/donut.glb", 1)
 #borrarReceta("Galleta")
 #insertarReceta("Galleta", "harina, azucar, huevo, mantequilla", "sin_gluten,sin_lactosa", "modelos/galleta.glb", 0.3)
+
+#borrarTodosValoresTabla("usuarios")
+#for usuario in consultarUsuarios():print(usuario)
+#inicializarPrograma()

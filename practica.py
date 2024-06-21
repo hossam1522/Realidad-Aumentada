@@ -25,17 +25,26 @@ def fromOpencvToPyrender(rvec, tvec):
   return(pose)
 
 
-def cargarModelo(nombrefi, escala=1.0):
-  modelo_trimesh = trimesh.load(nombrefi, file_type='glb')
+def cargarModelo(nombrefi, escala=1.0, tipo='glb', rotacion = 0.0):
+  modelo_trimesh = trimesh.load(nombrefi, file_type=tipo)
   modelo_mesh = pyrender.Mesh.from_trimesh(list(modelo_trimesh.geometry.values()))
 
   mat_loc = mathutils.Matrix.Translation((0.0, 0.0, 0.05))
 
-  mat_rot = mathutils.Matrix.Rotation(math.radians(90.0), 4, 'X')
+  #if rotacion:
+  mat_rot = mathutils.Matrix.Rotation(math.radians(rotacion), 4, 'X')
+
+  #mat_rot = mathutils.Matrix.Rotation(math.radians(90.0), 4, 'X')
 
   mat_sca = mathutils.Matrix.Scale(escala, 4)
 
+  #if rotacion:
   meshpose = mat_loc @ mat_rot @ mat_sca
+  #else:
+  #  meshpose = mat_loc @ mat_sca
+
+  #meshpose = mat_loc @ mat_rot @ mat_sca
+  #meshpose = mat_loc @ mat_sca
 
   modelo = pyrender.Node(mesh=modelo_mesh, matrix=meshpose) # Creamos un nodo indicando la malla y su pose
   return modelo

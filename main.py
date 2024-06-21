@@ -1,54 +1,135 @@
-import tkinter as tk
-from tkinter import messagebox
+import sys
+from PyQt5.QtWidgets import QApplication, QWidget, QMessageBox, QVBoxLayout, QPushButton, QLabel, QLineEdit, QCheckBox, QGridLayout
+import cv2
+import face_recognition
+import numpy as np
 from practica import cargarModelo, mostrarModelo, devolverEscena
 import bbdd
 import menu
+import json
 
-def verificar_usuario(event=None):  # Permitir que la función acepte un argumento opcional
-    nombre = entry_username.get()
-    existe_usuario = bbdd.usuarioExiste(nombre)
-    
-    if existe_usuario:
-        messagebox.showinfo("Login Successful", f"Bienvenido de nuevo, {nombre}")
-        root.destroy()
-        iniciar_programa(nombre)
+def capturar_imagen():
+    video_capture = cv2.VideoCapture(0)
+    ret, frame = video_capture.read()
+    video_capture.release()
+    if ret:
+        return frame
     else:
-        messagebox.showerror("Login Failed", "Usuario no encontrado. Por favor, introduce tus alergias y preferencias.")
-        mostrar_campos_alergias_preferencias()
+        return None
 
-def mostrar_campos_alergias_preferencias():
-    alergias_label.grid(row=2, column=0, padx=10, pady=10)
-    entry_alergias.grid(row=2, column=1, padx=10, pady=10)
-    
-    preferencias_label.grid(row=3, column=0, padx=10, pady=10)
-    entry_preferencias.grid(row=3, column=1, padx=10, pady=10)
-    
-    confirmar_button.grid(row=4, column=0, columnspan=2, pady=10)
+def reconocer_usuario(frame):
+    known_face_encodings = []
+    known_face_names = []
 
-def confirmar_datos():
-    nombre = entry_username.get()
-    alergias = entry_alergias.get()
-    preferencias = entry_preferencias.get()
-    bbdd.insertarUsuario(nombre, alergias, preferencias)
-    messagebox.showinfo("User Created", "Usuario creado con éxito")
-    root.destroy()
-    iniciar_programa(nombre)
+    usuarios = bbdd.consultarUsuarios()
+    if not usuarios:
+        return None  # No hay usuarios en la base de datos
+
+    for usuario in usuarios:
+        if usuario[4]:  # usuario[4] contiene la codificación facial
+            encoding_usuario = json.loads(usuario[4])
+            if isinstance(encoding_usuario, list) and len(encoding_usuario) == 128:
+                known_face_encodings.append(np.array(encoding_usuario))
+                known_face_names.append(usuario[1])  # usuario[1] es el nombre del usuario
+            else:
+                print(f"Codificación facial no válida para el usuario {usuario[1]}")
+
+    face_locations = face_recognition.face_locations(frame)
+    face_encodings = face_recognition.face_encodings(frame, face_locations)
+
+    if not face_encodings:
+        print("No se encontraron caras en la imagen capturada")
+        return None  # No se encontraron caras en la imagen capturada
+
+    for face_encoding in face_encodings:
+        matches = face_recognition.compare_faces(known_face_encodings, face_encoding)
+        face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
+        if face_distances.size > 0:
+            best_match_index = np.argmin(face_distances)
+
+            if matches[best_match_index]:
+                return known_face_names[best_match_index]
+    return None
+
+class RegisterWindow(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.initUI()
+
+    def initUI(self):
+        self.setWindowTitle('Register')
+        layout = QGridLayout()
+
+        self.name_label = QLabel('Nombre:')
+        self.name_input = QLineEdit()
+
+        self.alergias_labels = ["Lactosa", "Gluten", "Frutos secos", "Mariscos", "Huevos"]
+        self.alergias_checks = []
+        for alergia in self.alergias_labels:
+            check = QCheckBox(alergia)
+            self.alergias_checks.append(check)
+
+        self.preferencias_label = QLabel('Preferencias:')
+        self.preferencias_input = QLineEdit()
+
+        self.register_button = QPushButton('Register', self)
+        self.register_button.clicked.connect(self.confirmar_datos)
+
+        layout.addWidget(self.name_label, 0, 0)
+        layout.addWidget(self.name_input, 0, 1)
+        
+        for i, check in enumerate(self.alergias_checks):
+            layout.addWidget(check, i + 1, 0, 1, 2)
+
+        layout.addWidget(self.preferencias_label, len(self.alergias_checks) + 1, 0)
+        layout.addWidget(self.preferencias_input, len(self.alergias_checks) + 1, 1)
+
+        layout.addWidget(self.register_button, len(self.alergias_checks) + 2, 0, 1, 2)
+
+        self.setLayout(layout)
+
+    def confirmar_datos(self):
+        nombre = self.name_input.text()
+
+        seleccion_alergias = []
+        for check in self.alergias_checks:
+            if check.isChecked():
+                seleccion_alergias.append(check.text())
+
+        alergias_str = ", ".join(seleccion_alergias)
+        preferencias = self.preferencias_input.text()
+
+        frame = capturar_imagen()
+        if frame is None:
+            QMessageBox.critical(self, "Error", "No se pudo capturar la imagen. Asegúrese de que la cámara está funcionando correctamente.")
+            return
+
+        codificacion = face_recognition.face_encodings(frame)
+        if not codificacion:
+            QMessageBox.critical(self, "Error", "No se ha podido codificar su rostro. Por favor, inténtelo de nuevo.")
+            return
+        
+        json_codificacion = json.dumps(codificacion[0].tolist())
+
+        bbdd.insertarUsuario(nombre, alergias_str, preferencias, json_codificacion)
+        QMessageBox.information(self, "User Created", "Usuario creado con éxito")
+        self.close()
+        iniciar_programa(nombre)
 
 def iniciar_programa(nombre):
     escena, cam, ar, mirender = devolverEscena()  # Creamos la escena y la cámara
     receta, marcador = menu.iniciar_menu_ar()
     print("Receta seleccionada: ", receta)
     
-    #modelo = cargarModelo(ruta_receta, escala)  # Cargamos el modelo 3D (en formato glb)
-    ruta_receta, escala = bbdd.obtener_ruta_escala_receta(receta)
-    #datos = bbdd.obtener_ruta_escala_receta(receta)
-    #ruta_receta = datos[0]
-    #escala = datos[1]
-    modelo = cargarModelo(ruta_receta, escala)  # Cargamos el modelo 3D (en formato glb)
-    #modelo = cargarModelo("modelos/ramen_bowl.glb", 1.0)  # Cargamos el modelo 3D (en formato glb
+    try:
+        ruta_receta, escala, tipo_archivo, rotacion = bbdd.obtener_datos_receta(receta)
+    except TypeError:
+        QMessageBox.critical(None, "Error", "No se ha encontrado la receta seleccionada")
+        exit()
+
+    modelo = cargarModelo(ruta_receta, escala, tipo_archivo, rotacion)  # Cargamos el modelo 3D (en formato glb)
     escena.add_node(modelo)  # Y la añadimos a la escena
     
-    # Mostrar el modelo 3D encima de un marcador de la biblioteca
     if menu.obtenerModo() == "Estatico":
         ar.process = lambda frame: mostrarModelo(frame, 0)
     else:
@@ -59,23 +140,22 @@ def iniciar_programa(nombre):
     finally:
         ar.release()
 
-# Crear la ventana principal
-root = tk.Tk()
-root.title("Login")
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
 
-# Crear y colocar los widgets de la ventana de inicio de sesión
-tk.Label(root, text="Username:").grid(row=0, column=0, padx=10, pady=10)
-entry_username = tk.Entry(root)
-entry_username.grid(row=0, column=1, padx=10, pady=10)
-entry_username.bind("<Return>", verificar_usuario)  # Asociar la tecla Enter con la función verificar_usuario
+    frame = capturar_imagen()
+    if frame is None:
+        QMessageBox.critical(None, "Error", "No se pudo capturar la imagen. Asegúrese de que la cámara está funcionando correctamente.")
+        sys.exit()
 
-alergias_label = tk.Label(root, text="Alergias:")
-entry_alergias = tk.Entry(root)
-preferencias_label = tk.Label(root, text="Preferencias:")
-entry_preferencias = tk.Entry(root)
-confirmar_button = tk.Button(root, text="Confirmar", command=confirmar_datos)
+    nombre = reconocer_usuario(frame)
 
-tk.Button(root, text="Login", command=verificar_usuario).grid(row=1, column=0, columnspan=2, pady=10)
+    if nombre:
+        QMessageBox.information(None, "Login Successful", f"Bienvenido de nuevo, {nombre}")
+        iniciar_programa(nombre)
+    else:
+        QMessageBox.critical(None, "Login Failed", "No se ha encontrado ningún usuario asociado a usted. Por favor, regístrese.")
+        register_window = RegisterWindow()
+        register_window.show()
 
-# Iniciar el bucle de eventos de tkinter
-root.mainloop()
+    sys.exit(app.exec_())

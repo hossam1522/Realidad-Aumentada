@@ -1,37 +1,45 @@
 import cv2
 import numpy as np
-import speech_recognition as sr
+import vosk
 import threading
-import time
-import queue
-from bbdd import obtenerMenu, obtener_ingrediente_por_marcador, obtener_recetas_por_ingrediente
+import json
+import pyaudio
+from bbdd import obtenerMenu, obtener_ingrediente_por_marcador, obtener_recetas_por_ingrediente, obtener_ingredientes_de_receta
 
 modo = "Estatico"
 
-# Función que muestra el menú y permite seleccionar una receta mediante comandos de voz
+# Inicializar el modelo de Vosk
+model = vosk.Model("voz/vosk-model-small-es-0.42")
+
+# Inicializar el stream de audio
+p = pyaudio.PyAudio()
+stream = p.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=4000)
+
 def iniciar_menu_ar():
     global modo
-    # Inicializar el reconocedor de voz
-    recognizer = sr.Recognizer()
     listening = False
     selected_item = None
     marcador = None
+    ingredientes_visible = False
 
     # Diccionario para almacenar el estado del menú para cada marcador
     menu_states = {}
 
     def recognize_speech():
-        nonlocal listening, selected_item, menu_states, marcador
+        nonlocal listening, selected_item, menu_states, marcador, ingredientes_visible
         global modo
-        with sr.Microphone() as source:
-            recognizer.adjust_for_ambient_noise(source)
-            while True:
-                if listening:
-                    print("Escuchando...")
-                    try:
-                        audio = recognizer.listen(source, timeout=5)
-                        command = recognizer.recognize_google(audio, language="es-ES")
-                        command = command.lower()
+        rec = vosk.KaldiRecognizer(model, 16000)
+
+        while True:
+            if listening:
+                print("Escuchando...")
+                while listening:
+                    data = stream.read(4000, exception_on_overflow=False)
+                    if len(data) == 0:
+                        break
+                    if rec.AcceptWaveform(data):
+                        result = json.loads(rec.Result())
+                        command = result.get("text", "").lower()
                         print(f"Comando reconocido: {command}")
                         for id_marcador, state in menu_states.items():
                             if "siguiente" in command:
@@ -43,22 +51,28 @@ def iniciar_menu_ar():
                                 print(f"Marcador {id_marcador}: Item seleccionado {selected_item}")
                                 listening = False
                                 break
+                            elif "ingredientes" in command:
+                                ingredientes_visible = True
+                                print(f"Mostrando ingredientes de {selected_item}")
+                            elif "atrás" in command:
+                                ingredientes_visible = False
+                                print("Ocultando ingredientes")
                             elif "estático" in command:
                                 modo = "Estatico"
                             elif "dinámico" in command:
                                 modo = "Dinamico"
-                    except sr.WaitTimeoutError:
-                        print("Tiempo de espera agotado")
-                    except sr.UnknownValueError:
-                        print("No se entendió el comando")
-                    except sr.RequestError as e:
-                        print(f"Error al solicitar resultados de reconocimiento de voz; {e}")
 
     # Hilo para reconocimiento de voz
-    threading.Thread(target=recognize_speech, daemon=True).start()
+    thread = threading.Thread(target=recognize_speech, daemon=True)
+    thread.start()
 
     # Iniciar la captura de video
     cap = cv2.VideoCapture(0)
+    # Acelerar la captura de video
+    cap.set(cv2.CAP_PROP_FPS, 60)
+    # Buffer máximo para cámara fluida
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 3)
+
     if not cap.isOpened():
         print("Error: No se puede abrir la cámara")
         return
@@ -68,7 +82,7 @@ def iniciar_menu_ar():
     # Crear los parámetros del detector ArUco
     parameters = cv2.aruco.DetectorParameters()
 
-    while selected_item is None:
+    while selected_item is None or ingredientes_visible:
         # Capturar el cuadro
         ret, frame = cap.read()
         if not ret:
@@ -79,7 +93,8 @@ def iniciar_menu_ar():
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         # Detectar los marcadores ArUco
-        corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
+        detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
+        corners, ids, rejectedImgPoints = detector.detectMarkers(gray)
 
         if ids is not None and len(ids) > 0:
             listening = True
@@ -113,12 +128,25 @@ def iniciar_menu_ar():
                     cv2.rectangle(frame, top_left, (top_left[0] + 300, top_left[1] + 100 + 20*len(recetas)), (125, 125, 125), -1)
 
                     # Mostrar el ingrediente y las recetas en el cuadro
-                    cv2.putText(frame, f"Ingrediente: {ingrediente}", (top_left[0] + 10, top_left[1] + 30), 
+                    cv2.putText(frame, f"Ingrediente: {ingrediente[0]}", (top_left[0] + 10, top_left[1] + 30), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
                     for idx, receta in enumerate(state['menu_items']):
                         prefix = "-> " if idx == state['current_item'] else "   "
                         cv2.putText(frame, prefix + receta, (top_left[0] + 10, top_left[1] + 60 + 20*idx), 
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+
+                    # Mostrar los ingredientes de la receta seleccionada si se ha dado el comando
+                    if ingredientes_visible:
+                        ingredientes = obtener_ingredientes_de_receta(state['menu_items'][state['current_item']])
+                        if ingredientes:
+                            top_left_ingredientes = (top_left[0], top_left[1] + 100 + 20*len(recetas))
+                            cv2.rectangle(frame, top_left_ingredientes, 
+                                          (top_left_ingredientes[0] + 300, top_left_ingredientes[1] + 25*len(ingredientes)), 
+                                          (0, 0, 0), -1)
+                            for idx, ingrediente in enumerate(ingredientes):
+                                cv2.putText(frame, ingrediente, 
+                                            (top_left_ingredientes[0] + 10, top_left_ingredientes[1] + 20*(idx + 1)), 
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
         else:
             listening = False
 
@@ -152,3 +180,9 @@ def iniciar_menu_ar():
 
 def obtenerModo():
     return modo
+
+def obtenerStream():
+    return stream, p
+#
+## Llamar a la función principal
+#iniciar_menu_ar()
