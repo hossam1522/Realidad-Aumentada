@@ -4,16 +4,20 @@ import vosk
 import threading
 import json
 import pyaudio
-from bbdd import obtenerMenu, obtener_ingrediente_por_marcador, obtener_recetas_por_ingrediente, obtener_ingredientes_de_receta, obtener_alergias_de_receta, alergias_usuario
+from bbdd import obtenerMenu, obtener_ingrediente_por_marcador, obtener_recetas_por_ingrediente, obtener_ingredientes_de_receta, obtener_alergias_de_receta, alergias_usuario, preferencias_usuario
+import pyttsx3
 
 modo = "Estatico"
 
+# Inicializa el motor TTS
+engine = pyttsx3.init()
+
+# Configura las propiedades de la voz (opcional)
+engine.setProperty('rate', 150)  # Velocidad de la voz
+engine.setProperty('volume', 0.9)  # Volumen (0.0 a 1.0)
+
 # Inicializar el modelo de Vosk
 model = vosk.Model("voz/vosk-model-small-es-0.42")
-
-# Inicializar el stream de audio
-p = pyaudio.PyAudio()
-stream = p.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=4000)
 
 def iniciar_menu_ar(nombre_usuario):
     global modo
@@ -62,6 +66,10 @@ def iniciar_menu_ar(nombre_usuario):
                             elif "dinámico" in command:
                                 modo = "Dinamico"
 
+    # Inicializar el stream de audio
+    p = pyaudio.PyAudio()
+    stream = p.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=4000)
+
     # Hilo para reconocimiento de voz
     thread = threading.Thread(target=recognize_speech, daemon=True)
     thread.start()
@@ -84,6 +92,8 @@ def iniciar_menu_ar(nombre_usuario):
 
     # Lista de alergias a evitar
     alergias = alergias_usuario(nombre_usuario)
+    # Lista de preferencias de ingredientes
+    preferencias = preferencias_usuario(nombre_usuario)
 
     while selected_item is None or ingredientes_visible:
         # Capturar el cuadro
@@ -151,8 +161,20 @@ def iniciar_menu_ar(nombre_usuario):
                         cumple_restricciones = all(alergia not in alergias_receta for alergia in alergias)
                         if not cumple_restricciones:
                             aviso_text_position = (receta_text_position[0] + text_width + 10, receta_text_position[1])  # Añadir un pequeño espacio después del texto
-                            cv2.putText(frame, "AVISO: Contiene alergenos", aviso_text_position, 
+                            cv2.putText(frame, "AVISO: Alergenos", aviso_text_position, 
                                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2, cv2.LINE_AA)
+                            
+                        tiene_preferencias = False
+                        # Verificar preferencias
+                        ingredientes_receta = obtener_ingredientes_de_receta(receta)
+                        for ingrediente in ingredientes_receta:
+                            if ingrediente in preferencias:
+                                tiene_preferencias = True
+                                break
+                        if tiene_preferencias and cumple_restricciones:
+                            aviso_text_position = (receta_text_position[0] + text_width + 10, receta_text_position[1])  # Añadir un pequeño espacio después del texto
+                            cv2.putText(frame, "Con preferencia", aviso_text_position, 
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2, cv2.LINE_AA)
 
 
                     # Mostrar los ingredientes de la receta seleccionada si se ha dado el comando
@@ -195,6 +217,15 @@ def iniciar_menu_ar(nombre_usuario):
     # Liberar los recursos
     cap.release()
     cv2.destroyAllWindows()
+
+    # Texto a decir
+    text = "Has seleccionado " + selected_item
+
+    # Hace que el motor diga el texto
+    engine.say(text)
+
+    # Espera a que termine de hablar
+    engine.runAndWait()
 
     return selected_item, marcador
 

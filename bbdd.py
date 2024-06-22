@@ -269,7 +269,9 @@ def obtener_ingredientes_de_receta(nombre_receta):
     cursor.execute('SELECT ingredientes FROM recetas WHERE nombre = ?', (nombre_receta,))
     resultado = cursor.fetchone()
     conn.close()
-    return resultado[0].split(',')
+    if resultado is None:
+        return []
+    return [ingrediente.strip() for ingrediente in resultado[0].split(',')]
 
 def alergias_usuario(nombre_usuario):
     conn = conectar()
@@ -277,7 +279,26 @@ def alergias_usuario(nombre_usuario):
     cursor.execute('SELECT alergias FROM usuarios WHERE nombre = ?', (nombre_usuario,))
     resultado = cursor.fetchone()
     conn.close()
-    return resultado[0].split(',')
+    if resultado is None:
+        return []
+    return [alergia.strip() for alergia in resultado[0].split(',')]
+
+def preferencias_usuario(nombre_usuario):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute('SELECT preferencias FROM usuarios WHERE nombre = ?', (nombre_usuario,))
+    resultado = cursor.fetchone()
+    conn.close()
+    if resultado is None:
+        return []
+    return [preferencia.strip() for preferencia in resultado[0].split(',')]
+
+def modificarPreferenciasUsuario(nombre_usuario, preferencias):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE usuarios SET preferencias = ? WHERE nombre = ?', (preferencias, nombre_usuario))
+    conn.commit()
+    conn.close()
 
 def obtener_alergias_de_receta(nombre_receta):
     conn = conectar()
@@ -285,7 +306,9 @@ def obtener_alergias_de_receta(nombre_receta):
     cursor.execute('SELECT propiedades FROM recetas WHERE nombre = ?', (nombre_receta,))
     resultado = cursor.fetchone()
     conn.close()
-    return resultado[0].split(',')
+    if resultado is None:
+        return []
+    return [alergia.strip() for alergia in resultado[0].split(',')]
 
 def inicializarPrograma():
     borrarTodasLasTablas()
@@ -295,6 +318,13 @@ def inicializarPrograma():
     insertarReceta("Hamburguesa", "carne, pan, lechuga, tomate, queso", "sin_gluten,sin_lactosa", "modelos/hamburguesa.glb", 0.3, "glb", 90.0)
     insertarReceta("Galleta", "harina, azucar, huevo, mantequilla", "sin_gluten,sin_lactosa", "modelos/galleta.glb", 0.3, "glb", 0.0)
     insertarIngrediente("huevo", 1)
+    insertarReceta("Pizza", "harina, tomate, queso, pepperoni", "Gluten, Lactosa", "modelos/pizza.glb", 0.1, "glb", 0.0)
+    insertarReceta("Pancake", "harina, leche, huevo, azucar", "Gluten, Lactosa", "modelos/pancakes.glb", 0.2, "glb", 90.0)
+    insertarReceta("Pastel de Manzana", "harina, manzana, azucar, mantequilla", "Gluten", "modelos/pastel_manzana.glb", 0.05, "glb", 90.0)
+    insertarReceta("Gazpacho", "tomate, pepino, pimiento, ajo", "", "modelos/gazpacho.glb", 0.1, "glb", 90.0)
+    insertarReceta("Tarta de nata", "harina, nata, azucar, huevo", "Gluten, Lactosa", "modelos/tarta.obj", 6.0, "obj", 90.0)
+    insertarReceta("Pavo al horno", "pavo, patata, zanahoria, cebolla", "", "modelos/pavo.obj", 3.0, "obj", 90.0)
+    insertarReceta("Espaguetis", "pasta, tomate, carne, cebolla", "Gluten", "modelos/espagueti.obj", 0.1, "obj", 90.0)
 
 #inicializarPrograma()
 
@@ -310,3 +340,8 @@ def inicializarPrograma():
 #borrarTodosValoresTabla("usuarios")
 #for usuario in consultarUsuarios():print(usuario)
 #inicializarPrograma()
+
+#modificarPreferenciasUsuario("hossam", "leche")
+
+# Persona intolerante a la lactosa -> Pizza, Pastel de Manzana, Gazpacho, Pavo al horno, Espaguetis
+# Persona intolerante al gluten -> Gazpacho, Pavo al horno
